@@ -1,5 +1,6 @@
 import User from "../models/user.js";
 import argon2 from "argon2";
+import jwt from "jsonwebtoken";
 
 // Controller untuk registrasi user
 export const register = async (req, res) => {
@@ -23,7 +24,20 @@ export const register = async (req, res) => {
       role,
     });
 
-    res.status(201).json({ msg: "Registrasi berhasil", user: newUser });
+    // Generate JWT token
+    // const token = jwt.sign(
+    //   { id: newUser.uuid, role: newUser.role },
+    //   process.env.JWT_SECRET,
+    //   {
+    //     expiresIn: "1d",
+    //   }
+    // );
+
+    // res.status(201).json({ msg: "Registrasi berhasil", user: newUser, token });
+    res.status(201).json({
+      msg: "Registrasi berhasil",
+      user: { name: name, email: email, role: role },
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: error.message });
@@ -40,23 +54,28 @@ export const Login = async (req, res) => {
   if (!user) return res.status(404).json({ msg: "User tidak ditemukan" });
   const match = await argon2.verify(user.password, req.body.password);
   if (!match) return res.status(400).json({ msg: "Wrong Password" });
-  req.session.userId = user.uuid;
-  const uuid = user.uuid;
-  const name = user.name;
-  const email = user.email;
-  const role = user.role;
-  res.status(200).json({ uuid, name, email, role });
+
+  // Generate JWT token
+  const token = jwt.sign(
+    { id: user.uuid, role: user.role },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "1d",
+    }
+  );
+
+  const { uuid, name, email, role } = user;
+  res
+    .status(200)
+    .json({ msg: "Login berhasil", user: { uuid, name, email, role }, token });
 };
 
 // CONTROLLER AKUN SETELAH LOGIN MENGETAHUI DATA AKUN YANG TELAH LOGIN
 export const Me = async (req, res) => {
-  if (!req.session.userId) {
-    return res.status(401).json({ msg: "Mohon login ke akun anda!" });
-  }
   const user = await User.findOne({
     attributes: ["uuid", "name", "email", "role"],
     where: {
-      uuid: req.session.userId,
+      uuid: req.user.id,
     },
   });
   if (!user) return res.status(404).json({ msg: "User tidak ditemukan" });

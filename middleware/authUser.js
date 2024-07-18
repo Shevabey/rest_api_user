@@ -1,13 +1,34 @@
 import User from "../models/user.js";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
 
-// protect login user
+dotenv.config();
+
+// JWT Token
+export const verifyToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token)
+    return res
+      .status(401)
+      .json({ msg: "Mohon masukkan token jwt login anda!" });
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ msg: "Token tidak valid" });
+    req.user = user;
+    next();
+  });
+};
+
+// Protect login user
 export const verifyUser = async (req, res, next) => {
-  if (!req.session.userId) {
+  if (!req.user) {
     return res.status(401).json({ msg: "Mohon login ke akun anda!" });
   }
   const user = await User.findOne({
     where: {
-      uuid: req.session.userId,
+      uuid: req.user.id,
     },
   });
   if (!user) return res.status(404).json({ msg: "User tidak ditemukan" });
@@ -16,41 +37,26 @@ export const verifyUser = async (req, res, next) => {
   next();
 };
 
-// Acces admin only
-export const adminOnly = async (req, res, next) => {
-  const user = await User.findOne({
-    where: {
-      uuid: req.session.userId,
-    },
-  });
-  if (!user) return res.status(404).json({ msg: "User tidak ditemukan" });
-  if (user.role !== "admin")
+// Access admin only
+export const adminOnly = (req, res, next) => {
+  if (req.user.role !== "admin") {
     return res.status(403).json({ msg: "Akses terlarang, admin only! " });
+  }
   next();
 };
 
-// Acces company only
-export const companyOnly = async (req, res, next) => {
-  const user = await User.findOne({
-    where: {
-      uuid: req.session.userId,
-    },
-  });
-  if (!user) return res.status(404).json({ msg: "User tidak ditemukan" });
-  if (user.role !== "company" && user.role !== "admin")
+// Access company only
+export const companyOnly = (req, res, next) => {
+  if (req.user.role !== "company" && req.user.role !== "admin") {
     return res.status(403).json({ msg: "Akses terlarang, company only! " });
+  }
   next();
 };
 
-// Acces applicant only
-export const applicantOnly = async (req, res, next) => {
-  const user = await User.findOne({
-    where: {
-      uuid: req.session.userId,
-    },
-  });
-  if (!user) return res.status(404).json({ msg: "User tidak ditemukan" });
-  if (user.role !== "applicant" && user.role !== "admin")
-    return res.status(403).json({ msg: "Akses terlarang, admin only! " });
+// Access applicant only
+export const applicantOnly = (req, res, next) => {
+  if (req.user.role !== "applicant" && req.user.role !== "admin") {
+    return res.status(403).json({ msg: "Akses terlarang, applicant only! " });
+  }
   next();
 };
